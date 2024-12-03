@@ -1,31 +1,72 @@
+import pandas as pd
+
 import requests
 import os
 from itertools import product
 from tqdm import tqdm
 
+from typing import List
 
-def download(url: str, out: str) -> None :
+
+def download_file(url: str, path: str) -> None :
+    '''downloading the file for the given url and saving it on out'''
+
     response = requests.get(url)
     if (response.status_code == 200):
-        with open(out, 'wb') as handle : 
+        with open(path, 'wb') as handle : 
             handle.write(response.content)
     else:
         raise Exception(f'failed to download {url} [{response.status_code}]')
     
-def main():
-    if not(os.path.exists('./data')) : os.mkdir('./data')
+def prep(
+    years: List[str]=['2017', '2018', '2019', '2020', '2021', '2022', '2023'],
+    indicators: List[str]=['NO2']
+) -> pd.DataFrame:
+    '''prepping the downloaded csv's'''
 
-    indictors = ['NO2']
-    years = ['2017', '2018', '2019', '2020', '2021', '2022', '2023']
+    df = pd.concat([
+        pd.read_csv(f'./data/{indicator}/{year}.csv', sep=';', skiprows=9, encoding='latin-1') 
+        for (indicator, year) in product(indicators, years)
+    ])
+    # removing spacing errors in the column names
+    df.columns = pd.Index([col.strip() for col in df.columns])
+
+    df.rename(columns={'Begindatumtijd': 'Time'}, inplace=True)
+    df['Time'] = pd.to_datetime(df['Time'])
+    df.set_index('Time', inplace=True)
+
+    df.drop([col for col in df.columns if not(col.startswith('NL'))], axis=1, inplace=True)
+    
+    df['Hour'] = df.index.hour
+    df['Day'] = df.index.day
+    df['Month'] = df.index.month
+    df['Year'] = df.index.month
+    df['Time.Continuous'] = df.index.astype('int64') / 1e10 / 60
+
+    # TODO : how are we going to handle the NaN's?
+    #        maybe it's better to just removing any instances containing them while batching the data?
+    df.ffill(inplace=True)
+
+    return df
+    
+def load(
+    years: List[str]=['2017', '2018', '2019', '2020', '2021', '2022', '2023'],
+    indicators: List[str]=['NO2']
+) -> pd.DataFrame:
+
+    if not(os.path.exists('./data')) : os.mkdir('./data')
 
     url = lambda indicator, year : f'https://data.rivm.nl/data/luchtmeetnet/Vastgesteld-jaar/{year}/{year}_{indicator}.csv'
 
-    for indicator in indictors :
+    for indicator in indicators :
         if not(os.path.exists(f'./data/{indicator}')) : os.mkdir(f'./data/{indicator}')
 
     print('Downloading data...')
-    for (indicator, year) in tqdm(product(indictors, years), total=len(indictors)*len(years)) :
+    for (indicator, year) in tqdm(product(indicators, years), total=len(indicators)*len(years)) :
         if not(os.path.exists(f'./data/{indicator}/{year}.csv')) : 
-            download(url(indicator, year), f'./data/{indicator}/{year}.csv')
+            download_file(url(indicator, year), f'./data/{indicator}/{year}.csv')
 
-if (__name__ == '__main__') : main()
+    return prep(years, indicators)
+    
+
+if (__name__ == '__main__') : load()
