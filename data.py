@@ -38,6 +38,7 @@ def prep(
     df.drop([col for col in df.columns if not(col.startswith('NL'))], axis=1, inplace=True)
     
     df['Hour'] = df.index.hour
+    df['DayOfYear'] = df.index.dayofyear
     df['Day'] = df.index.day
     df['Month'] = df.index.month
     df['Year'] = df.index.month
@@ -46,6 +47,7 @@ def prep(
     # TODO : how are we going to handle the NaN's?
     #        maybe it's better to just removing any instances containing them while batching the data?
     df.ffill(inplace=True)
+    df.bfill(inplace=True)
 
     return df
     

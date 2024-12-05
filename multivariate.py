@@ -21,9 +21,12 @@ from typing import Tuple
 import data
 
 class UniDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, column: str='NL01485', in_days=4, out_days=14, device='cpu') -> None : 
-        self.x = torch.tensor(df[column].values, dtype=torch.float32, device=device)
-        # self.t = torch.tensor(df['Time.Continuous'].values, dtype=torch.float32)
+    def __init__(self, df: pd.DataFrame, columns: str=None, in_days=4, out_days=14, device='cpu') -> None : 
+        if (columns is None) : columns = [col for col in df.columns if col.startswith('NL')][:25]
+            
+        self.variates = len(columns)
+
+        self.x = torch.tensor(df[columns].values, dtype=torch.float32, device=device)
         # TODO : add more time features not only hour
         self.h = torch.tensor(df['Hour'].values, dtype=torch.float32, device=device)/24
         self.doy = torch.tensor(df['DayOfYear'].values, dtype=torch.float32, device=device)/365
@@ -122,12 +125,14 @@ def main(args) :
     val_dataset = UniDataset(val_df, in_days=args.in_days, out_days=args.out_days, device=device)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True)
 
+    print(f'number of variates: {train_dataset.variates}')
     # TODO : setup the config
     config = AutoformerConfig(
-        prediction_length=train_dataset.out_samples, 
+        input_size=train_dataset.variates, 
+        prediction_length=train_dataset.out_samples,
         context_length=89, # idk how to set this value, this is the only way it works
         num_time_features=2,
-        d_model=32,
+        d_model=16,
     )
     model = AutoformerForPrediction(config).to(device)
     
@@ -135,12 +140,15 @@ def main(args) :
 
     for epoch in range(args.epochs):
         loss_avg = train(args, model, device, train_loader, optimizer, epoch)
-        val_rmse = eval(args, model, val_loader, epoch)
-        print(f'[{epoch+1:02d}/{args.epochs:02d}] {loss_avg:.3f} {val_rmse:.3f}')
+        print(f'[{epoch+1:02d}/{args.epochs:02d}] {loss_avg:.3f}')
+    
+    torch.save(model.state_dict(), 'multivariate_model.pth')
+    model.config.to_json_file('multivariate_config.json')
+
+    val_rmse = eval(args, model, val_loader, epoch)
+    print(f'validation rmse: {val_rmse:.3f}')
 
 
-    torch.save(model.state_dict(), 'univariate_model.pth')
-    model.config.to_json_file('univariate_config.json')
 
 
 if (__name__ == '__main__') : main(parse_args())
