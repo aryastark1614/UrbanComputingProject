@@ -13,9 +13,9 @@ parser = ArgumentParser()
 parser.add_argument('--station', type=str, default=None)
 args = parser.parse_args()
 
-config = AutoformerConfig.from_json_file('regular_config.json')
+config = AutoformerConfig.from_json_file('models/regular_config.json')
 model = AutoformerForPrediction(config)
-model.load_state_dict(torch.load('regular_model.pth', weights_only=True))
+model.load_state_dict(torch.load('models/regular_model.pth', weights_only=True))
 model.eval();
 
 train_df = load(years=['2017', '2018', '2019', '2020'], indicators=['NOx', 'NO', 'NO2'])
