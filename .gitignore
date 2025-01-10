@@ -1,6 +1,5 @@
 __pycache__/*
-data/*
+data/*/
 models/*
-*.json
-*.pth
+figures/*
 notepad.ipynb
